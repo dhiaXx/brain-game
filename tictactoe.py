@@ -1,78 +1,80 @@
-# Enhanced Tic Tac Toe with local, AI, and online multiplayer modes
-# Features: player names, scores, chat, and a vibrant GUI using tkinter
-
 import tkinter as tk
 from tkinter import messagebox, simpledialog, scrolledtext
-import socket
-import threading
 
 class TicTacToeEnhanced:
     def __init__(self, master):
+        """Initialize the Tic Tac Toe game with GUI and game logic."""
         self.master = master
         self.master.title("Tic Tac Toe - Enhanced Edition")
-        self.master.configure(bg="#1e1e2f")
+        self.master.configure(bg="#2e3b4e")  # Dark Blue-Gray background
         self.board = ['' for _ in range(9)]
         self.buttons = []
         self.current_player = "X"
         self.player_names = {'X': "Player 1", 'O': "Player 2"}
         self.scores = {'X': 0, 'O': 0, 'Tie': 0}
         self.mode = tk.StringVar(value="PvP")
-        self.connection = None
-        self.chat_box = None
-        self.chat_entry = None
-        self.is_host = False
+        self.get_player_names()
+
+     
         self.setup_ui()
 
+    def get_player_names(self):
+        """Prompt players to enter their names."""
+        player_x_name = simpledialog.askstring("Player X", "Enter name for Player X:")
+        player_o_name = simpledialog.askstring("Player O", "Enter name for Player O:")
+
+     
+        self.player_names['X'] = player_x_name if player_x_name else "Player X"
+        self.player_names['O'] = player_o_name if player_o_name else "Player O"
+
     def setup_ui(self):
-        mode_frame = tk.Frame(self.master, bg="#1e1e2f")
+        """Set up the user interface for the game."""
+        # Mode selection
+        mode_frame = tk.Frame(self.master, bg="#2e3b4e")
         mode_frame.pack(pady=10)
-        for mode in ["PvP", "PvAI", "Online"]:
+        for mode in ["PvP", "PvAI"]:
             tk.Radiobutton(mode_frame, text=mode, variable=self.mode, value=mode, command=self.reset_board,
-                           bg="#1e1e2f", fg="white", selectcolor="#2e2e4d").pack(side=tk.LEFT, padx=10)
+                           bg="#2e3b4e", fg="white", selectcolor="#3c4f65").pack(side=tk.LEFT, padx=10)
 
-        name_frame = tk.Frame(self.master, bg="#1e1e2f")
+
+        name_frame = tk.Frame(self.master, bg="#2e3b4e")
         name_frame.pack()
-        self.name_vars = {'X': tk.StringVar(value="Player 1"), 'O': tk.StringVar(value="Player 2")}
-        tk.Entry(name_frame, textvariable=self.name_vars['X'], width=15).pack(side=tk.LEFT, padx=10)
-        tk.Entry(name_frame, textvariable=self.name_vars['O'], width=15).pack(side=tk.LEFT, padx=10)
+        self.name_vars = {'X': tk.StringVar(value=self.player_names['X']), 'O': tk.StringVar(value=self.player_names['O'])}
+        tk.Entry(name_frame, textvariable=self.name_vars['X'], width=15, bg="#3c4f65", fg="white").pack(side=tk.LEFT, padx=10)
+        tk.Entry(name_frame, textvariable=self.name_vars['O'], width=15, bg="#3c4f65", fg="white").pack(side=tk.LEFT, padx=10)
 
-        self.board_frame = tk.Frame(self.master, bg="#1e1e2f")
+        self.board_frame = tk.Frame(self.master, bg="#2e3b4e")
         self.board_frame.pack()
         for i in range(9):
             b = tk.Button(self.board_frame, text='', font=('Helvetica', 24, 'bold'), width=5, height=2,
-                          bg="#2e2e4d", fg="white", command=lambda i=i: self.make_move(i))
+                          bg="#4a627a", fg="white", command=lambda i=i: self.make_move(i))
             b.grid(row=i//3, column=i%3, padx=5, pady=5)
             self.buttons.append(b)
 
-        self.score_label = tk.Label(self.master, text="", font=("Arial", 14), fg="white", bg="#1e1e2f")
+        self.score_label = tk.Label(self.master, text="", font=("Arial", 14), fg="white", bg="#2e3b4e")
         self.score_label.pack(pady=5)
 
-        control_frame = tk.Frame(self.master, bg="#1e1e2f")
+        control_frame = tk.Frame(self.master, bg="#2e3b4e")
         control_frame.pack()
-        tk.Button(control_frame, text="Reset", command=self.reset_board, bg="#444", fg="white").pack(side=tk.LEFT, padx=10)
-
-        self.chat_box = scrolledtext.ScrolledText(self.master, height=6, state='disabled', bg="#111", fg="lime", font=("Courier", 10))
-        self.chat_entry = tk.Entry(self.master, bg="black", fg="lime")
-        self.chat_entry.bind("<Return>", self.send_chat)
-        self.chat_box.pack(fill=tk.X, padx=10, pady=(10, 0))
-        self.chat_entry.pack(fill=tk.X, padx=10, pady=(0, 10))
+        tk.Button(control_frame, text="Reset", command=self.reset_board, bg="#3c4f65", fg="white").pack(side=tk.LEFT, padx=10)
 
         self.update_score()
 
     def update_score(self):
+        """Update the score display."""
         self.score_label.config(text=f"{self.name_vars['X'].get()} (X): {self.scores['X']} | "
                                      f"{self.name_vars['O'].get()} (O): {self.scores['O']} | Ties: {self.scores['Tie']}")
 
     def reset_board(self):
+        """Reset the game board for a new game."""
         self.board = ['' for _ in range(9)]
         self.current_player = 'X'
         for btn in self.buttons:
-            btn.config(text='', bg="#2e2e4d")
-        if self.mode.get() == "Online":
-            threading.Thread(target=self.setup_network, daemon=True).start()
+            btn.config(text='', bg="#4a627a")
 
     def make_move(self, index):
-        if self.board[index] == '' and (self.mode.get() != "Online" or self.current_player == 'X'):
+        """Handle a player's move."""
+        if self.board[index] == '':
             self.board[index] = self.current_player
             self.update_buttons()
             if self.check_winner():
@@ -91,104 +93,77 @@ class TicTacToeEnhanced:
             self.current_player = 'O' if self.current_player == 'X' else 'X'
             if self.mode.get() == "PvAI" and self.current_player == 'O':
                 self.master.after(500, self.ai_move)
-            elif self.mode.get() == "Online" and self.connection:
-                self.send_move(index)
 
     def update_buttons(self):
+        """Update the button texts to reflect the current board state."""
         for i, val in enumerate(self.board):
-            color = "#ff4d4d" if val == 'X' else "#4dff4d"
-            self.buttons[i].config(text=val, fg=color if val else "white")
+            color = "#ff69b4" if val == 'X' else "#ffd700" if val == 'O' else "white"
+            self.buttons[i].config(text=val, fg=color)
 
     def check_winner(self):
-        wins = [(0,1,2), (3,4,5), (6,7,8),
-                (0,3,6), (1,4,7), (2,5,8),
-                (0,4,8), (2,4,6)]
-        for a,b,c in wins:
+        """Check if there is a winner."""
+        wins = [(0, 1, 2), (3, 4, 5), (6, 7, 8),
+                (0, 3, 6), (1, 4, 7), (2, 5, 8),
+                (0, 4, 8), (2, 4, 6)]
+        for a, b, c in wins:
             if self.board[a] == self.board[b] == self.board[c] and self.board[a] != '':
-                for i in [a,b,c]:
+                for i in [a, b, c]:
                     self.buttons[i].config(bg="#ffcc00")
                 return True
         return False
 
     def ai_move(self):
+        """Handle the AI's move."""
         for i in range(9):
             if self.board[i] == '':
-                self.make_move(i)
+                self.board[i] = self.current_player
+                self.update_buttons()
+                if self.check_winner():
+                    winner = self.current_player
+                    self.scores[winner] += 1
+                    messagebox.showinfo("Game Over", f"{self.name_vars[winner].get()} wins!")
+                    self.update_score()
+                    self.reset_board()
+                    return
+                elif '' not in self.board:
+                    self.scores['Tie'] += 1
+                    messagebox.showinfo("Game Over", "It's a tie!")
+                    self.update_score()
+                    self.reset_board()
+                    return
+                self.current_player = 'X'
                 break
 
-    def setup_network(self):
-        if self.connection:
-            self.connection.close()
-        self.is_host = messagebox.askyesno("Online Mode", "Are you the host?")
-        if self.is_host:
-            server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server.bind(("", 12345))
-            server.listen(1)
-            self.log_chat("Waiting for connection...")
-            self.connection, _ = server.accept()
-            self.log_chat("Player connected.")
-            threading.Thread(target=self.receive_data, daemon=True).start()
-        else:
-            ip = simpledialog.askstring("Connect", "Enter host IP:")
-            try:
-                self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.connection.connect((ip, 12345))
-                threading.Thread(target=self.receive_data, daemon=True).start()
-                self.log_chat("Connected to server.")
-            except:
-                messagebox.showerror("Connection Failed", "Unable to connect.")
+def show_splash_screen():
+    """Display a splash screen before launching the main game."""
+    splash = tk.Tk()
+    splash.title("Welcome")
+    splash.configure(bg="#2e3b4e")
+    splash.geometry("400x300")
+    splash.overrideredirect(True)
 
-    def send_move(self, index):
-        try:
-            self.connection.send(f"MOVE:{index}".encode())
-        except:
-            self.log_chat("Connection lost.")
+    title_label = tk.Label(splash, text="", font=("Helvetica", 32, "bold"), fg="sky blue", bg="#2e3b4e")
+    title_label.pack(pady=50)
 
-    def send_chat(self, event):
-        msg = self.chat_entry.get()
-        if msg and self.connection:
-            try:
-                self.connection.send(f"CHAT:{msg}".encode())
-                self.log_chat(f"You: {msg}")
-                self.chat_entry.delete(0, tk.END)
-            except:
-                self.log_chat("Failed to send message.")
+    subtitle_label = tk.Label(splash, text="Enhanced Edition", font=("Helvetica", 16), fg="#ffcc00", bg="#2e3b4e")
+    subtitle_label.pack()
 
-    def log_chat(self, message):
-        self.chat_box['state'] = 'normal'
-        self.chat_box.insert(tk.END, message + "\n")
-        self.chat_box['state'] = 'disabled'
-        self.chat_box.see(tk.END)
+    loading_label = tk.Label(splash, text="Loading...", font=("Helvetica", 12), fg="white", bg="#2e3b4e")
+    loading_label.pack(pady=20)
 
-    def receive_data(self):
-        while True:
-            try:
-                data = self.connection.recv(1024).decode()
-                if data.startswith("MOVE:"):
-                    index = int(data.split(":")[1])
-                    self.board[index] = self.current_player
-                    self.update_buttons()
-                    if self.check_winner():
-                        self.scores[self.current_player] += 1
-                        self.update_score()
-                        messagebox.showinfo("Game Over", f"{self.name_vars[self.current_player].get()} wins!")
-                        self.reset_board()
-                        continue
-                    elif '' not in self.board:
-                        self.scores['Tie'] += 1
-                        self.update_score()
-                        messagebox.showinfo("Game Over", "It's a tie!")
-                        self.reset_board()
-                        continue
-                    self.current_player = 'O' if self.current_player == 'X' else 'X'
-                elif data.startswith("CHAT:"):
-                    self.log_chat("Opponent: " + data[5:])
-            except:
-                self.log_chat("Disconnected from opponent.")
-                break
+    game_title = "Tic Tac Toe"
+
+    def animate_title(index=0):
+        if index < len(game_title):
+            title_label.config(text=game_title[:index + 1])
+            splash.after(150, lambda: animate_title(index + 1))
+
+    animate_title()
+    splash.after(3000, splash.destroy)
+    splash.mainloop()
 
 if __name__ == "__main__":
+    show_splash_screen()
     root = tk.Tk()
     game = TicTacToeEnhanced(root)
     root.mainloop()
-
