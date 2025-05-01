@@ -1,6 +1,3 @@
-# Enhanced Tic Tac Toe with local, AI, and online multiplayer modes
-# Features: player names, scores, chat, and a vibrant GUI using tkinter
-
 import tkinter as tk
 from tkinter import messagebox, simpledialog, scrolledtext
 import socket
@@ -34,20 +31,14 @@ class TicTacToeEnhanced:
         self.chat_box = None
         self.chat_entry = None
 
-        # UI setup
+  
         self.setup_ui()
-
-        # Prompt for host or client if in Online mode
         if self.mode.get() == "Online":
             self.prompt_host_or_client()
-
-    # -------------------- UI Setup --------------------
 
     def setup_ui(self):
         """Set up the user interface for the game."""
         print("Setting up the UI...")
-
-        # Mode selection
         mode_frame = tk.Frame(self.master, bg="#1e1e2f")
         mode_frame.pack(pady=10)
         for mode in ["PvP", "PvAI", "Online"]:
@@ -55,15 +46,13 @@ class TicTacToeEnhanced:
                 mode_frame, text=mode, variable=self.mode, value=mode,
                 command=self.reset_board, bg="#1e1e2f", fg="white", selectcolor="#2e2e4d"
             ).pack(side=tk.LEFT, padx=10)
-
-        # Player name inputs
         name_frame = tk.Frame(self.master, bg="#1e1e2f")
         name_frame.pack()
         self.name_vars = {'X': tk.StringVar(value="Player 1"), 'O': tk.StringVar(value="Player 2")}
         tk.Entry(name_frame, textvariable=self.name_vars['X'], width=15).pack(side=tk.LEFT, padx=10)
         tk.Entry(name_frame, textvariable=self.name_vars['O'], width=15).pack(side=tk.LEFT, padx=10)
 
-        # Game board
+
         self.board_frame = tk.Frame(self.master, bg="#1e1e2f")
         self.board_frame.pack()
         for i in range(9):
@@ -74,16 +63,14 @@ class TicTacToeEnhanced:
             b.grid(row=i // 3, column=i % 3, padx=5, pady=5)
             self.buttons.append(b)
 
-        # Score display
         self.score_label = tk.Label(self.master, text="", font=("Arial", 14), fg="white", bg="#1e1e2f")
         self.score_label.pack(pady=5)
 
-        # Control buttons
+
         control_frame = tk.Frame(self.master, bg="#1e1e2f")
         control_frame.pack()
         tk.Button(control_frame, text="Reset", command=self.reset_board, bg="#444", fg="white").pack(side=tk.LEFT, padx=10)
 
-        # Chat box and entry
         self.chat_box = scrolledtext.ScrolledText(self.master, height=6, state='disabled', bg="#111", fg="lime", font=("Courier", 10))
         self.chat_entry = tk.Entry(self.master, bg="black", fg="lime")
         self.chat_entry.bind("<Return>", self.send_chat)
@@ -100,7 +87,6 @@ class TicTacToeEnhanced:
                  f"{self.name_vars['O'].get()} (O): {self.scores['O']} | Ties: {self.scores['Tie']}"
         )
 
-    # -------------------- Game Logic --------------------
 
     def reset_board(self):
         """Reset the game board for a new game."""
@@ -170,8 +156,6 @@ class TicTacToeEnhanced:
             if self.board[i] == '':
                 self.make_move(i)
                 break
-
-    # -------------------- Networking --------------------
 
     def setup_network(self):
         """Set up the network connection for online mode."""
