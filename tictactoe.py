@@ -26,7 +26,7 @@ class TicTacToeEnhanced:
         self.connection = None
         self.is_host = False
 
-        # Chat variables
+    
         self.chat_box = None
         self.chat_entry = None
 
