@@ -15,7 +15,7 @@ class TicTacToeEnhanced:
         self.master.title("Tic Tac Toe - Enhanced Edition")
         self.master.configure(bg="#1e1e2f")
 
-        # Game state variables
+       
         self.board = ['' for _ in range(9)]
         self.buttons = []
         self.current_player = "X"
@@ -23,7 +23,6 @@ class TicTacToeEnhanced:
         self.scores = {'X': 0, 'O': 0, 'Tie': 0}
         self.mode = tk.StringVar(value="PvP")
 
-        # Networking variables
         self.connection = None
         self.is_host = False
 
