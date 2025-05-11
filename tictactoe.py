@@ -248,9 +248,7 @@ class TicTacToeEnhanced:
                 print("Disconnected from opponent.")
                 self.log_chat("Disconnected from opponent.")
                 break
-
-    # -------------------- Chat --------------------
-
+                
     def send_chat(self, event):
         """Send a chat message to the opponent."""
         msg = self.chat_entry.get()
@@ -272,8 +270,7 @@ class TicTacToeEnhanced:
         self.chat_box['state'] = 'disabled'
         self.chat_box.see(tk.END)
 
-    # -------------------- Miscellaneous --------------------
-
+   
     def prompt_host_or_client(self):
         """Prompt the user to choose if they are the host or client."""
         is_host = messagebox.askyesno("Host or Client", "Are you the host?")
@@ -296,14 +293,13 @@ def show_splash_screen():
     splash.geometry("400x300")
     splash.overrideredirect(True)
 
-    # Add a fancy label for the game name
+
     tk.Label(splash, text="Tic Tac Toe", font=("Helvetica", 32, "bold"), fg="white", bg="#1e1e2f").pack(pady=50)
     tk.Label(splash, text="Enhanced Edition", font=("Helvetica", 16), fg="#ffcc00", bg="#1e1e2f").pack()
 
-    # Add a loading message
     tk.Label(splash, text="Loading...", font=("Helvetica", 12), fg="white", bg="#1e1e2f").pack(pady=20)
 
-    # Display the splash screen for 3 seconds
+    
     splash.after(3000, splash.destroy)
     splash.mainloop()
 
