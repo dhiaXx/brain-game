@@ -37,3 +37,17 @@ python3 promo/d3d/make_d3d_ad.py --preview  # 540×960 draft
 | 12–16 s | Yellow end card: "Envoyez-nous votre logo", **DM @d3d.tn**, +216 25 430 387 | Call to action |
 
 The music is original, 120 BPM house-style, with whooshes on cuts and a "ding" on the price. Audio is mastered to −14 LUFS.
+
+## Premium soundtrack (`premium_audio.py`)
+
+The soundtrack is a deep-house track at 120 BPM in A minor, arranged to match the ad's scenes:
+
+- **0–2 s, hook:** an impact with a sub-bass drop. The chords and a low version of the melody play through a closed filter.
+- **2–4 s, build:** the filter opens, a snare roll speeds up, a riser climbs, and there's a short silence just before the drop.
+- **4–8 s, drop:** the full groove (four-on-the-floor kick, claps, shuffled hats, offbeat bass) with the main melody, ping-pong delay and the "pumping" effect.
+- **8–12 s, offer:** an impact, a bell chord on the price, rising bell tones on each checkmark, and a softer arpeggio underneath.
+- **12–16 s, call to action:** the final chorus with the melody doubled an octave up, ending on a bell chord with reverb.
+
+The mix uses kick-keyed sidechain ducking, convolution reverb, mid/side widening, and a master chain run in ffmpeg: high-pass, EQ, glue compression, limiter and loudness normalisation to −14 LUFS.
+
+To replace only the audio of an already-rendered ad, run `python3 promo/d3d/make_d3d_ad.py --remux`.

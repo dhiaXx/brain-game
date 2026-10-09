@@ -14,12 +14,12 @@ import math
 import os
 import subprocess
 import sys
-import wave
 from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
+import premium_audio
 from make_d3d_promo import (F_BLACK, F_BOLD, F_LAB, F_MED, F_SEMI, INK, YELLOW, clamp,
                             ease_in_cubic, ease_in_out, ease_out_back, ease_out_cubic,
                             ease_out_expo, font, over, prog, px, reveal, text_image)
@@ -329,153 +329,31 @@ def render_frame(i):
     return np.clip(f, 0, 255).astype(np.uint8).tobytes()
 
 
-# ------------------------------------------------------------------ audio
-def synth_audio(path):
-    n = int(DUR * SR)
-    out = np.zeros((n, 2), np.float32)
-    rng = np.random.default_rng(5)
-
-    def place(sig, t0, gain=1.0, pan=0.0):
-        s = int(t0 * SR)
-        e = min(n, s + len(sig))
-        if s >= n or e <= s:
-            return
-        l, r = math.cos((pan + 1) * math.pi / 4), math.sin((pan + 1) * math.pi / 4)
-        out[s:e, 0] += sig[:e - s] * gain * l * 1.414
-        out[s:e, 1] += sig[:e - s] * gain * r * 1.414
-
-    def note(m):
-        return 440.0 * 2 ** ((m - 69) / 12)
-
-    def smooth(x, k):
-        return np.convolve(x, np.ones(k) / k, mode="same")
-
-    def xs(length):
-        return np.arange(int(length * SR)) / SR
-
-    def kick():
-        x = xs(0.42)
-        return np.tanh(1.6 * np.sin(2 * np.pi * np.cumsum(46 + 120 * np.exp(-x * 32)) / SR)) * np.exp(-x * 7)
-
-    def clap():
-        nz = rng.standard_normal(int(0.25 * SR))
-        x = np.arange(len(nz)) / SR
-        bp = smooth(nz, 3) - smooth(nz, 14)
-        env = sum(np.exp(-np.maximum(0, x - d) * 40) * (x >= d) for d in (0, 0.011, 0.022))
-        return bp * env * 1.6
-
-    def hat(length=0.05):
-        nz = rng.standard_normal(int(length * SR))
-        x = np.arange(len(nz)) / SR
-        return (nz - smooth(nz, 3)) * np.exp(-x * 70)
-
-    def pluck(freq, length=0.35, decay=0.12):
-        x = xs(length)
-        s = sum(np.sin(2 * np.pi * freq * h * x) / h for h in (1, 2, 3, 4))
-        return s * np.minimum(1, x / 0.003) * np.exp(-x / decay)
-
-    def sub(freq, length):
-        x = xs(length)
-        return np.tanh(2 * np.sin(2 * np.pi * freq * x)) * np.minimum(1, x / 0.01) * np.exp(-x * 5)
-
-    def riser(length):
-        nz = rng.standard_normal(int(length * SR))
-        x = np.linspace(0, 1, len(nz))
-        lp = smooth(nz, 30) * (1 - x) + (nz - smooth(nz, 6)) * x
-        tone = np.sin(2 * np.pi * np.cumsum(200 + 1400 * x ** 2) / SR) * 0.25
-        return (lp + tone) * x ** 2
-
-    def boom():
-        x = xs(1.6)
-        return np.sin(2 * np.pi * (36 + 70 * np.exp(-x * 10)) * x) * np.exp(-x * 2.2) \
-            + smooth(rng.standard_normal(len(x)), 5) * np.exp(-x * 12) * 0.5
-
-    def whoosh(length):
-        nz = smooth(rng.standard_normal(int(length * SR)), 16)
-        x = np.linspace(0, 1, len(nz))
-        return nz * np.sin(np.pi * x) ** 2 * 3
-
-    def ding():
-        x = xs(1.2)
-        return (np.sin(2 * np.pi * 1568 * x) + 0.6 * np.sin(2 * np.pi * 2093 * x)
-                + 0.3 * np.sin(2 * np.pi * 3136 * x)) * np.exp(-x * 4) * np.minimum(1, x / 0.002)
-
-    # Progression in A minor: Am - F - C - G, one bar each.
-    roots = [45, 41, 48, 43]
-    chords = [[69, 72, 76], [65, 69, 72], [67, 72, 76], [67, 71, 74]]
-    bar = 4 * BEAT
-    for b in range(int(DUR / bar) + 1):
-        t0 = b * bar
-        ch, rt = chords[b % 4], roots[b % 4]
-        # Chord stabs on the offbeats (syncopated, house-style).
-        for s_ in (0.5, 1.5, 2.5, 3.5):
-            for m in ch:
-                place(pluck(note(m), 0.3, 0.09), t0 + s_ * BEAT, 0.05, -0.3 + 0.3 * ch.index(m))
-        # Sub bass on the offbeat 8ths.
-        if t0 >= T_PRINT - 0.01:
-            for s_ in range(8):
-                if s_ % 2:
-                    place(sub(note(rt - 12), 0.24), t0 + s_ * BEAT / 2, 0.22)
-
-    # Drums.
-    t = 0.0
-    k = 0
-    while t < DUR - 0.6:
-        full = t >= T_PRINT - 0.01
-        if full or k % 2 == 0:
-            place(kick(), t, 0.85)
-        if full and k % 2 == 1:
-            place(clap(), t, 0.30, 0.1)
-        if t >= T_PROOF - 0.01:
-            place(hat(), t + BEAT / 2, 0.22, 0.3)
-            place(hat(0.03), t + BEAT / 4, 0.10, -0.3)
-            place(hat(0.03), t + 3 * BEAT / 4, 0.10, -0.3)
-        t += BEAT
-        k += 1
-
-    # Hook impact.
-    place(boom(), 0.0, 0.8)
-    place(whoosh(0.4), 0.3, 0.25)
-    # Print: rising tone over the build, ding at completion.
-    x = xs(1.5)
-    place(np.sin(2 * np.pi * np.cumsum(300 + 500 * x / 1.5) / SR) * 0.15 * (x / 1.5), T_PRINT + 0.1, 0.4)
-    place(ding(), T_PRINT + 1.6, 0.25)
-    # Montage: whoosh on every cut.
-    for i in range(len(MONTAGE)):
-        place(whoosh(0.18), T_PROOF + i * BEAT - 0.09, 0.18, 0.4 if i % 2 else -0.4)
-    # Riser into the offer, impact + "cash" ding on the price.
-    place(riser(1.8), T_OFFER - 1.8, 0.35)
-    place(boom(), T_OFFER, 0.7)
-    place(ding(), T_OFFER + 0.75, 0.35)
-    for n_ in range(len(CHECKS)):
-        place(pluck(note(84 + [0, 3, 7, 12][n_]), 0.4, 0.1), T_OFFER + 1.25 + n_ * BEAT, 0.22)
-    # CTA impact.
-    place(whoosh(0.4), T_CTA - 0.3, 0.3)
-    place(boom(), T_CTA, 0.6)
-
-    tt = np.arange(n) / SR
-    out *= np.clip((DUR - tt) / 0.8, 0, 1)[:, None]
-    out = np.tanh(out * 1.1)
-    pcm = (np.clip(out, -1, 1) * 32767).astype(np.int16)
-    with wave.open(path, "wb") as w:
-        w.setnchannels(2)
-        w.setsampwidth(2)
-        w.setframerate(SR)
-        w.writeframes(pcm.tobytes())
+def make_score(wav):
+    premium_audio.render(wav, DUR, T_PRINT, T_PROOF, T_OFFER, T_CTA, len(MONTAGE), len(CHECKS))
 
 
 def main():
     wav = os.path.join(HERE, "_ad_score.wav")
     mp4 = os.path.join(HERE, "d3d_ad_preview.mp4" if PREVIEW else "d3d_ad.mp4")
     print("synthesizing score...")
-    synth_audio(wav)
+    make_score(wav)
+    if "--remux" in sys.argv:  # keep the rendered picture, replace only the soundtrack
+        tmp = mp4 + ".tmp.mp4"
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", mp4, "-i", wav,
+                        "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-af", premium_audio.MASTER,
+                        "-c:a", "aac", "-b:a", "256k", "-ar", "48000",
+                        "-movflags", "+faststart", "-shortest", tmp], check=True)
+        os.replace(tmp, mp4)
+        os.remove(wav)
+        print("remuxed", mp4)
+        return
     vf = "eq=contrast=1.05:saturation=1.12,noise=alls=2:allf=t,format=yuv420p"
-    af = "loudnorm=I=-14:TP=-1.0:LRA=9"
     cmd = ["ffmpeg", "-y", "-loglevel", "error",
            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-           "-i", wav, "-vf", vf, "-af", af,
+           "-i", wav, "-vf", vf, "-af", premium_audio.MASTER,
            "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-profile:v", "high",
-           "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+           "-c:a", "aac", "-b:a", "256k", "-ar", "48000",
            "-movflags", "+faststart", "-shortest", mp4]
     enc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     print(f"rendering {NFRAMES} frames at {W}x{H}...")
