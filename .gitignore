@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+promo/**/_*.mp4
+promo/**/_*.wav
+promo/**/_*.npy
+promo/**/_stills/
