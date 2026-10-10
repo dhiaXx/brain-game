@@ -26,6 +26,9 @@ from multiprocessing import Pool
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from premium_audio import stft_lowpass  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "src", "raw_v2.mp4")  # cleaner voice mix
 GRADED = os.path.join(HERE, "_graded.mp4")
@@ -765,28 +768,54 @@ def sfx_bank():
     def sm(x, k):
         return np.convolve(x, np.ones(k) / k, mode="same")
 
-    def whip(L=0.28):
-        nz = r.standard_normal(int(L * SR))
+    def band_sweep(nz, f0, f1, f2):
+        """Noise through a band that sweeps f0 -> f1 -> f2 (STFT filter)."""
+        L = len(nz) / SR
+        def fc(t):
+            u = clamp(t / L)
+            return f0 + (f1 - f0) * (u / 0.6) if u < 0.6 else f1 + (f2 - f1) * ((u - 0.6) / 0.4)
+        lp = stft_lowpass(nz, fc)
+        return lp - stft_lowpass(lp, lambda t: fc(t) * 0.35)
+
+    def whoosh(L=0.45):
+        nz = r.standard_normal(int(L * SR)).astype(np.float32)
         x = np.linspace(0, 1, len(nz))
-        lo, hi = sm(nz, 30), nz - sm(nz, 3)
-        mix = lo * (1 - x) + hi * x * 0.5
-        return mix * np.sin(np.pi * x) ** 1.5 * 2.2
+        return band_sweep(nz, 500, 5000, 1200) * np.sin(np.pi * x) ** 1.6 * 3.0
+
+    def swipe(L=0.22):
+        nz = r.standard_normal(int(L * SR)).astype(np.float32)
+        x = np.linspace(0, 1, len(nz))
+        return band_sweep(nz, 2500, 9000, 6000) * np.sin(np.pi * x) ** 2 * 2.2
 
     def paper(L=0.35):
         nz = r.standard_normal(int(L * SR))
         x = np.linspace(0, 1, len(nz))
         crinkle = (r.random(len(nz)) > 0.985) * r.standard_normal(len(nz)) * 3
-        s = (nz - sm(nz, 2)) * 0.5 + sm(crinkle, 3)
-        return s * np.sin(np.pi * x) ** 0.8 * np.exp(-x * 1.5)
+        s_ = (nz - sm(nz, 2)) * 0.5 + sm(crinkle, 3)
+        return s_ * np.sin(np.pi * x) ** 0.8 * np.exp(-x * 1.5)
 
     def pop(f0=900):
-        x = xs(0.12)
-        return np.sin(2 * np.pi * (f0 + 900 * np.exp(-x * 60)) * x) * np.exp(-x * 40)
+        x = xs(0.14)
+        body = np.sin(2 * np.pi * np.cumsum(f0 * 0.6 + f0 * np.exp(-x * 45)) / SR) * np.exp(-x * 35)
+        return body + np.sin(2 * np.pi * f0 * 2 * x) * np.exp(-x * 80) * 0.3
+
+    def click():
+        x = xs(0.04)
+        nz = r.standard_normal(len(x))
+        return ((nz - sm(nz, 2)) * 0.5 + np.sin(2 * np.pi * 3200 * x)) * np.exp(-x * 160)
 
     def tick():
         x = xs(0.03)
         nz = r.standard_normal(len(x))
         return ((nz - sm(nz, 2)) * 0.6 + np.sin(2 * np.pi * 2400 * x) * 0.4) * np.exp(-x * 220)
+
+    def typerun(n=12, gap=0.028):
+        sig = np.zeros(int((n * gap + 0.05) * SR))
+        for k in range(n):
+            tk = tick() * (0.7 + 0.3 * r.random())
+            st = int(k * gap * (0.85 + 0.3 * r.random()) * SR)
+            sig[st:st + len(tk)] += tk[:max(0, len(sig) - st)]
+        return sig
 
     def marker(L=0.35):
         nz = r.standard_normal(int(L * SR))
@@ -807,110 +836,145 @@ def sfx_bank():
         nz = r.standard_normal(len(x))
         return thud * 1.2 + sm(nz, 3) * np.exp(-x * 35) * 0.6
 
-    def boom():
-        x = xs(1.2)
-        return np.sin(2 * np.pi * (40 + 60 * np.exp(-x * 9)) * x) * np.exp(-x * 3) + \
-            sm(r.standard_normal(len(x)), 6) * np.exp(-x * 14) * 0.4
-
-    def riser(L=0.6):
-        nz = r.standard_normal(int(L * SR))
-        x = np.linspace(0, 1, len(nz))
-        return (nz - sm(nz, 3)) * x ** 3 * 0.7 + np.sin(2 * np.pi * np.cumsum(300 + 1500 * x ** 2) / SR) * x ** 2 * 0.2
-
     def ding(f0=1760):
         x = xs(1.0)
         I = 2.5 * np.exp(-x * 5)
         return np.sin(2 * np.pi * f0 * x + I * np.sin(2 * np.pi * f0 * 2 * x)) * np.exp(-x * 4)
 
-    def bubble():
-        x = xs(0.18)
-        return np.sin(2 * np.pi * np.cumsum(500 + 700 * x / 0.18) / SR) * np.exp(-x * 18)
+    def pling():
+        a_ = ding(1568)[:int(0.5 * SR)]
+        b_ = ding(2349)[:int(0.6 * SR)]
+        out = np.zeros(int(0.7 * SR))
+        out[:len(a_)] += a_
+        out[int(0.08 * SR):int(0.08 * SR) + len(b_)] += b_[:len(out) - int(0.08 * SR)]
+        return out * 0.7
+
+    def shimmer(L=0.8):
+        x = xs(L)
+        s_ = sum(np.sin(2 * np.pi * f * x + r.random() * 6) * np.exp(-x * (3 + k))
+                 for k, f in enumerate((2637, 3136, 3951, 4699)))
+        return s_ * np.minimum(1, x / 0.01) * 0.35
+
+    def send():
+        x = xs(0.3)
+        sw = np.sin(2 * np.pi * np.cumsum(400 + 1400 * (x / 0.3) ** 2) / SR) * np.sin(np.pi * x / 0.3) * 0.5
+        return sw + swipe(0.3)[:len(x)] * 0.6
+
+    def notif():
+        out = np.zeros(int(0.5 * SR))
+        for k, f in enumerate((1318.5, 1760)):
+            x = xs(0.3)
+            s_ = np.sin(2 * np.pi * f * x) * np.exp(-x * 14)
+            st = int(k * 0.11 * SR)
+            out[st:st + len(s_)] += s_[:len(out) - st]
+        return out * 0.6
+
+    def rise(L=0.6):
+        x = xs(L)
+        return np.sin(2 * np.pi * np.cumsum(500 + 900 * (x / L)) / SR) * (x / L) ** 0.6 * np.exp(-((x - L) / L) ** 2 * 0) * 0.35
 
     def count(L):
         out = np.zeros(int(L * SR))
         t = 0.0
-        k = 0
         while t < L - 0.03:
             tk = tick() * (0.5 + 0.5 * t / L)
-            s = int(t * SR)
-            out[s:s + len(tk)] += tk[:len(out) - s]
+            s0 = int(t * SR)
+            out[s0:s0 + len(tk)] += tk[:len(out) - s0]
             t += 0.09 * (1 - 0.6 * t / L)
-            k += 1
         return out
 
-    return dict(whip=whip, paper=paper, pop=pop, tick=tick, marker=marker, scribble=scribble,
-                stamp=stamp_, boom=boom, riser=riser, ding=ding, bubble=bubble, count=count)
+    return dict(whoosh=whoosh, swipe=swipe, paper=paper, pop=pop, click=click, tick=tick, typerun=typerun,
+                marker=marker, scribble=scribble, stamp=stamp_, ding=ding, pling=pling, shimmer=shimmer,
+                send=send, notif=notif, rise=rise, count=count)
+
+
+# Cuts where the source mix has no accent of its own -> safe for a whoosh.
+FREE_CUTS = [3.98, 6.47, 9.57, 15.67, 17.60, 19.00, 21.53]
 
 
 def build_sfx(path):
-    """Minimal UI sound design. The source mix already accents the cuts, so no
-    whooshes/booms on cuts or chapter starts (that doubled the audio before).
-    Events closer than 0.22 s to a previous one are dropped (no stacking)."""
+    """Sound design layered under the voice. Cuts that already carry an accent
+    in the source mix get nothing (no doubling); events closer than 0.12 s to
+    the previous one are dropped so nothing stacks."""
     n = int(DUR * SR)
     out = np.zeros((n, 2), np.float32)
     B = sfx_bank()
-    events = []
+    ev = []
 
-    def add(name, t0, g=1.0, pan=0.0, *args):
-        events.append((t0, name, g, pan, args))
+    def add(name, t0, g, pan=0.0, *args):
+        ev.append((t0, name, g, pan, args))
 
-    # Intro card.
-    add("paper", 0.05, 0.16)
-    add("marker", 0.75, 0.12)
-    # Chapter cards: a soft paper slide + short typewriter run.
+    # Transitions on the free cuts: stereo whoosh that travels with the whip.
+    for k, c in enumerate(FREE_CUTS):
+        add("whoosh", c - 0.24, 0.22, (-0.8, 0.8) if k % 2 == 0 else (0.8, -0.8))
+    # Intro.
+    add("swipe", 0.04, 0.26)
+    add("typerun", 0.2, 0.12, 0.0, 22, 0.032)
+    add("marker", 0.78, 0.20)
+    add("pop", 1.02, 0.18, 0.2, 760)
+    add("shimmer", 1.25, 0.10)
+    # Chapter cards: typewriter on the tag, swipe as the card docks in the header.
     for s_, _ in CHAPTERS:
-        add("paper", s_ + 0.02, 0.14)
-        add("typerun", s_ + 0.08, 0.06)
+        if any(abs(s_ - c) < 0.05 for c in (21.53,)) or s_ == 28.45:
+            add("swipe", s_ - 0.02, 0.22)
+        add("typerun", s_ + 0.12, 0.10, 0.0, 14, 0.025)
+        add("swipe", s_ + 0.62, 0.16, (0.0, -0.7))
     # Chapter 1.
     for k, t0 in enumerate([3.0, 3.45, 4.0]):
-        add("pop", t0, 0.10, -0.3, 800 + 150 * k)
-    add("marker", 5.27, 0.10)
-    add("marker", 6.70, 0.10)
+        add("pop", t0, 0.20, -0.4, 700 + 180 * k)
+    add("swipe", 5.14, 0.18)
+    add("marker", 5.29, 0.20)
+    add("swipe", 6.57 + 0.0, 0.18)
+    add("marker", 6.72, 0.20)
     # Chapter 2.
-    add("count", 9.8, 0.16, 0.0, 1.0)
-    add("ding", 10.8, 0.08, 0.0, 1568)
+    add("swipe", 8.92, 0.16)
+    add("count", 9.8, 0.26, 0.0, 1.0)
+    add("ding", 10.82, 0.14, 0.0, 1568)
     # Chapter 3.
-    add("marker", 11.65, 0.10)
-    add("bubble", 13.2, 0.16)
-    add("stamp", 18.0, 0.22)
+    add("swipe", 11.52, 0.16)
+    add("marker", 11.67, 0.20)
+    add("send", 13.2, 0.28)
+    add("notif", 14.0, 0.20)
+    add("stamp", 18.0, 0.30)
+    add("paper", 19.3, 0.16)
     # Chapter 4.
-    add("pop", 21.7, 0.10, -0.3, 900)
-    add("pop", 23.05, 0.10, 0.3, 1100)
-    add("ding", 23.9, 0.07, 0.0, 2093)
-    add("scribble", 27.3, 0.08)
-    add("stamp", 27.5, 0.22)
+    add("pop", 21.7, 0.18, -0.4, 820)
+    add("pop", 23.05, 0.18, 0.4, 980)
+    add("rise", 23.3, 0.20, 0.3)
+    add("ding", 23.9, 0.12, 0.3, 2093)
+    add("scribble", 27.3, 0.16)
+    add("stamp", 27.55, 0.30)
     # Chapter 5.
-    add("marker", 30.25, 0.10)
-    add("stamp", 31.0, 0.22)
-    # Outro.
-    add("paper", SRC_DUR + 0.02, 0.16)
-    add("stamp", SRC_DUR + 0.9, 0.18)
-    add("pop", SRC_DUR + 0.65, 0.12, 0.0, 1000)
-    add("pop", SRC_DUR + 1.15, 0.12, 0.0, 1200)
+    add("swipe", 28.92, 0.16)
+    add("swipe", 30.15, 0.16)
+    add("marker", 30.3, 0.20)
+    add("stamp", 31.0, 0.30)
+    add("pling", 31.12, 0.16)
+    # Outro (voice is over -> SFX can lead).
+    add("whoosh", SRC_DUR - 0.2, 0.30, (0.7, -0.7))
+    add("marker", SRC_DUR + 0.52, 0.20)
+    add("pop", SRC_DUR + 0.66, 0.22, 0.0, 900)
+    add("stamp", SRC_DUR + 0.92, 0.26)
+    add("pop", SRC_DUR + 1.15, 0.22, 0.0, 1100)
     for k in range(5):
-        add("tick", SRC_DUR + 1.6 + k * 0.45, 0.10)
-
-    def synth(name, args):
-        if name == "typerun":
-            sig = np.zeros(int(0.4 * SR))
-            for k in range(12):
-                tk = B["tick"]()
-                st = int(k * 0.028 * SR)
-                sig[st:st + len(tk)] += tk[:len(sig) - st]
-            return sig
-        return B[name](*args)
+        add("click", SRC_DUR + 1.6 + k * 0.45, 0.22, (-0.3, 0.0, 0.3)[k % 3])
+    add("shimmer", SRC_DUR + 1.62, 0.10)
 
     last = -1.0
-    for t0, name, g, pan, args in sorted(events, key=lambda e: e[0]):
-        if t0 - last < 0.22:
+    for t0, name, g, pan, args in sorted(ev, key=lambda e: e[0]):
+        if t0 - last < 0.12:
             continue
         last = t0
-        sig = synth(name, args)
-        s0 = int(t0 * SR)
+        sig = np.asarray(B[name](*args), np.float32)
+        s0 = max(0, int(t0 * SR))
         e0 = min(n, s0 + len(sig))
-        l, r_ = math.cos((pan + 1) * math.pi / 4), math.sin((pan + 1) * math.pi / 4)
-        out[s0:e0, 0] += sig[:e0 - s0] * g * l * 1.414
-        out[s0:e0, 1] += sig[:e0 - s0] * g * r_ * 1.414
+        sig = sig[:e0 - s0]
+        if isinstance(pan, tuple):  # pan sweep
+            pp = np.linspace(pan[0], pan[1], len(sig))
+        else:
+            pp = np.full(len(sig), pan)
+        out[s0:e0, 0] += sig * g * np.cos((pp + 1) * np.pi / 4) * 1.414
+        out[s0:e0, 1] += sig * g * np.sin((pp + 1) * np.pi / 4) * 1.414
     # Soft outro bed so the end card isn't silent.
     x = np.arange(int(OUTRO * SR)) / SR
     pad = sum(np.sin(2 * np.pi * f * x) for f in (220, 277.2, 329.6, 440)) / 4
@@ -932,8 +996,8 @@ AUDIO_MIX = (
     "equalizer=f=300:t=q:w=1.2:g=-3,equalizer=f=3000:t=q:w=1.2:g=3,treble=g=1.5:f=8000,"
     "acompressor=threshold=-22dB:ratio=3:attack=5:release=100:makeup=4,"
     f"apad=whole_dur={DUR},asplit=2[v][vkey];"
-    "[2:a]aresample=48000[s];"
-    "[s][vkey]sidechaincompress=threshold=0.02:ratio=10:attack=5:release=250[sd];"
+    "[2:a]aresample=48000,volume=2.0[s];"
+    "[s][vkey]sidechaincompress=threshold=0.05:ratio=4:attack=5:release=220[sd];"
     "[v][sd]amix=inputs=2:normalize=0:duration=longest,"
     "alimiter=limit=0.9,loudnorm=I=-14:TP=-1.0:LRA=8[a]"
 )

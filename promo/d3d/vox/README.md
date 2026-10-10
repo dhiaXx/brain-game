@@ -6,6 +6,7 @@ Changes in the ad version:
 - **Voice first:** clarity EQ and light compression on the voiceover, with sound effects ducked under the voice so they stay at least 12 dB below it while it speaks.
 - **No doubled sound:** the source mix already accents the cuts, so there are no extra whooshes or booms, and effects never stack.
 - **One red circle,** drawn as a single stroke.
+- **Sound effects (v3):** stereo whooshes only on the 7 cuts that have no accent in the source mix; typewriter on chapter tags; swipes as cards slide in; highlighter squeaks; pops on chips; counter ticks and a ding; message "send" + read-receipt notification; stamps; a rising tone on the 50 % pie; a check "pling"; clicks on the poll. They duck about 6–8 dB under the voice, and the louder ones peak around 11 dB below it.
 - **Interactive end card:** an « Envoyez DEVIS en DM » button plus a « Combien de pièces ? 50 · 100 · 500+ » comment poll.
 
 
