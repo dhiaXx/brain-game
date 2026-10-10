@@ -27,12 +27,12 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "src", "raw.mp4")
+SRC = os.path.join(HERE, "src", "raw_v2.mp4")  # cleaner voice mix
 GRADED = os.path.join(HERE, "_graded.mp4")
-OUT = os.path.join(HERE, "d3d_faq_vox.mp4")
+OUT = os.path.join(HERE, "d3d_faq_ad.mp4")
 W, H, FPS = 1080, 1920, 30
 SRC_DUR = 32.08
-OUTRO = 3.0
+OUTRO = 4.0
 DUR = SRC_DUR + OUTRO
 SR = 48000
 
@@ -221,12 +221,12 @@ def scribble_circle(w, h, p, color=RED, width=9, seed=0):
     r = np.random.default_rng(seed)
     n = 90
     a0 = -2.2
-    total = 2 * math.pi * 1.12
+    total = 2 * math.pi * 1.02  # a single loop, ends just meet
     pts = []
     for i in range(int(n * p) + 1):
         a = a0 + total * i / n
         wob = 1 + 0.035 * math.sin(a * 3 + seed) + 0.02 * r.standard_normal()
-        sp = 1 + 0.05 * (i / n)  # spiral slightly so the ends don't meet
+        sp = 1.0
         pts.append((20 + w / 2 + math.cos(a) * w / 2 * wob * sp,
                     20 + h / 2 + math.sin(a) * h / 2 * wob * sp))
     if len(pts) > 1:
@@ -587,30 +587,90 @@ def intro(f, t):
     place(f, b2b, W / 2, H * 0.47 + c.height / 2 + 30, 1.0, 1.5, prog(t, 1.0, 0.25) * (1 - pout))
 
 
+def dm_button(p, pulse):
+    t1 = text_img("Envoyez « DEVIS » en DM", font(F_BLACK, 46), WHITE, 0)
+    w, h = t1.width + 150, t1.height + 44
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([0, 0, w - 1, h - 1], radius=h // 2, fill=INK + (255,))
+    im.alpha_composite(t1, (40, 22 - 6))
+    # Arrow on the right.
+    ax, ay = w - 58, h // 2
+    d.line([(ax - 18, ay), (ax + 14, ay)], fill=YEL + (255,), width=7)
+    d.polygon([(ax + 22, ay), (ax + 6, ay - 14), (ax + 6, ay + 14)], fill=YEL + (255,))
+    return im
+
+
+def poll_card(lt):
+    q = text_img("Combien de pièces ?", font(F_BLACK, 56), INK, -1)
+    opts = ["50", "100", "500+"]
+    hi = int((lt - 1.6) / 0.45) % 3 if lt > 1.6 else -1
+    pills = []
+    for k, o in enumerate(opts):
+        tx = text_img(o, font(F_BLACK, 48), INK)
+        w, h = tx.width + 110, tx.height + 30
+        im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        on = k == hi
+        d.rounded_rectangle([0, 0, w - 1, h - 1], radius=h // 2, fill=(YEL if on else WHITE) + (255,),
+                            outline=INK + (255,), width=4)
+        d.ellipse([22, h // 2 - 14, 50, h // 2 + 14], outline=INK + (255,), width=4,
+                  fill=(INK if on else WHITE) + (255,))
+        im.alpha_composite(tx, (66, 15 - 6))
+        pills.append(im)
+    row_w = sum(pl.width for pl in pills) + 24 * 2
+    foot = text_img("Répondez en commentaire ↓", font(F_SEMI, 38), (60, 60, 60))
+    tag = mono_tag("SONDAGE", 24, INK, YEL)
+    cw = max(q.width, row_w, foot.width)
+    content = Image.new("RGBA", (cw, tag.height + 10 + q.height + 16 + pills[0].height + 16 + foot.height),
+                        (0, 0, 0, 0))
+    y = 0
+    content.alpha_composite(tag, ((cw - tag.width) // 2, y)); y += tag.height + 10
+    content.alpha_composite(q, ((cw - q.width) // 2, y)); y += q.height + 16
+    x = (cw - row_w) // 2
+    for pl in pills:
+        content.alpha_composite(pl, (x, y)); x += pl.width + 24
+    y += pills[0].height + 16
+    content.alpha_composite(foot, ((cw - foot.width) // 2, y))
+    return card(content, (40, 30))
+
+
 def outro(f, t):
     lt = t - SRC_DUR
     if lt < 0:
         return
-    logo = text_img("D3D", font(F_BLACK, 200), INK, -2)
-    l1 = highlight_text(["Porte-clés", "personnalisés"], font(F_BLACK, 62), [1], prog(lt, 0.5, 0.4))
-    l2 = text_img("pour entreprises, marques & événements", font(F_SEMI, 36), (70, 70, 70))
-    ic = chat_icon(30)
-    num = text_img("+216 25 430 387", font(F_BLACK, 58), INK)
-    ig = text_img("@d3d.tn", font(F_MONO, 34), INK, 2)
+    logo = text_img("D3D", font(F_BLACK, 180), INK, -2)
+    l1 = highlight_text(["Porte-clés", "personnalisés"], font(F_BLACK, 60), [1], prog(lt, 0.5, 0.4))
+    l2 = text_img("pour entreprises, marques & événements", font(F_SEMI, 34), (70, 70, 70))
+    ic = chat_icon(28)
+    num = text_img("+216 25 430 387", font(F_BLACK, 54), INK)
+    ig = text_img("@d3d.tn", font(F_MONO, 32), INK, 2)
     row = Image.new("RGBA", (ic.width + 16 + num.width, max(ic.height, num.height)), (0, 0, 0, 0))
     row.alpha_composite(ic, (0, (row.height - ic.height) // 2))
     row.alpha_composite(num, (ic.width + 16, (row.height - num.height) // 2))
     cw = max(logo.width, l1.width, l2.width, row.width)
-    content = Image.new("RGBA", (cw, logo.height + l1.height + l2.height + 30 + row.height + ig.height + 10),
+    content = Image.new("RGBA", (cw, logo.height + l1.height + l2.height + 26 + row.height + ig.height + 6),
                         (0, 0, 0, 0))
     y = 0
-    for im, gap in ((logo, -10), (l1, 0), (l2, 30), (row, 10), (ig, 0)):
+    for im, gap in ((logo, -10), (l1, 0), (l2, 26), (row, 6), (ig, 0)):
         content.alpha_composite(im, ((cw - im.width) // 2, y))
         y += im.height + gap
-    c = card(content, (60, 50))
+    c = card(content, (60, 44))
     pin = prog(lt, 0.0, 0.45)
-    place(f, c, W / 2, H * 0.48 + 150 * (1 - eo3(pin)), 0.9 + 0.1 * eback(pin), -1.5, eo3(pin))
-    stamp_slam(f, lt, 1.0, 99.0, "MAQUETTE 3D GRATUITE", W / 2 + 170, H * 0.48 - c.height / 2 + 10, -10, RED, 44)
+    cy = 300 + c.height / 2
+    place(f, c, W / 2, cy + 150 * (1 - eo3(pin)), 0.9 + 0.1 * eback(pin), -1.5, eo3(pin))
+    stamp_slam(f, lt, 0.9, 99.0, "MAQUETTE 3D GRATUITE", W / 2 + 170, cy - c.height / 2 + 6, -10, RED, 40)
+    # DM button (pulses on the beat of 0.5 s).
+    bp = prog(lt, 0.6, 0.35)
+    if bp > 0:
+        pulse = 1 + 0.04 * math.sin(max(0, lt - 1.0) * 2 * math.pi / 1.0) * (lt > 1.0)
+        place(f, dm_button(bp, pulse), W / 2, cy + c.height / 2 + 70, eback(bp) * pulse, 0, min(1, bp * 3))
+    # Comment poll.
+    pp = prog(lt, 1.1, 0.4)
+    if pp > 0:
+        pc = poll_card(lt)
+        place(f, pc, W / 2, cy + c.height / 2 + 170 + pc.height / 2 + 60 * (1 - eo3(pp)),
+              0.9 + 0.1 * eback(pp), 1.2, eo3(pp))
 
 
 def overlays(f, t):
@@ -620,7 +680,6 @@ def overlays(f, t):
         chips(f, t, [(3.0, 5.0, "Société"), (3.45, 5.0, "Marque"), (4.0, 5.0, "Événement")])
         caption(f, t, 5.12, 6.45, ["Motivez", "votre", "équipe"], [2])
         caption(f, t, 6.55, 7.92, ["Fidélisez", "vos", "clients"], [2])
-        circle(f, t, 6.7, 7.92, 640, 870, 520, 520, seed=2)
         # Chapter 2: MOQ
         caption(f, t, 8.9, 9.6, ["À", "partir", "de…"], [], cy=1380)
         counter_card(f, t, 9.6, 11.02)
@@ -784,81 +843,80 @@ def sfx_bank():
 
 
 def build_sfx(path):
+    """Minimal UI sound design. The source mix already accents the cuts, so no
+    whooshes/booms on cuts or chapter starts (that doubled the audio before).
+    Events closer than 0.22 s to a previous one are dropped (no stacking)."""
     n = int(DUR * SR)
     out = np.zeros((n, 2), np.float32)
     B = sfx_bank()
+    events = []
 
-    def add(sig, t0, g=1.0, pan=0.0):
-        s = int(t0 * SR)
-        if s >= n or s < 0:
-            return
-        e = min(n, s + len(sig))
-        l, r_ = math.cos((pan + 1) * math.pi / 4), math.sin((pan + 1) * math.pi / 4)
-        out[s:e, 0] += sig[:e - s] * g * l * 1.414
-        out[s:e, 1] += sig[:e - s] * g * r_ * 1.414
+    def add(name, t0, g=1.0, pan=0.0, *args):
+        events.append((t0, name, g, pan, args))
 
-    for k, c in enumerate(CUTS):
-        add(B["whip"](), c - 0.14, 0.22, 0.6 if k % 2 == 0 else -0.6)
-    # Intro.
-    add(B["boom"](), 0.02, 0.35)
-    add(B["paper"](), 0.05, 0.35)
-    for k in range(22):
-        add(B["tick"](), 0.2 + k * 0.032, 0.12)
-    add(B["marker"](), 0.75, 0.25)
-    add(B["pop"](700), 1.0, 0.15)
-    # Chapters.
-    for s, _ in CHAPTERS:
-        add(B["riser"](0.4), s - 0.4, 0.12)
-        add(B["boom"](), s, 0.28)
-        add(B["paper"](), s, 0.3)
-        for k in range(14):
-            add(B["tick"](), s + k * 0.025, 0.10)
-        add(B["paper"](0.25), s + 0.6, 0.18, -0.4)
-    # Chapter 1 chips + captions + circle.
+    # Intro card.
+    add("paper", 0.05, 0.16)
+    add("marker", 0.75, 0.12)
+    # Chapter cards: a soft paper slide + short typewriter run.
+    for s_, _ in CHAPTERS:
+        add("paper", s_ + 0.02, 0.14)
+        add("typerun", s_ + 0.08, 0.06)
+    # Chapter 1.
     for k, t0 in enumerate([3.0, 3.45, 4.0]):
-        add(B["pop"](800 + 150 * k), t0, 0.22, -0.4)
-    for t0 in (5.12, 6.55):
-        add(B["paper"](0.3), t0, 0.22)
-        add(B["marker"](), t0 + 0.15, 0.2)
-    add(B["scribble"](), 6.7, 0.18, 0.2)
+        add("pop", t0, 0.10, -0.3, 800 + 150 * k)
+    add("marker", 5.27, 0.10)
+    add("marker", 6.70, 0.10)
     # Chapter 2.
-    add(B["paper"](0.3), 8.9, 0.2)
-    add(B["paper"](0.3), 9.6, 0.25)
-    add(B["count"](1.0), 9.8, 0.35)
-    add(B["ding"](1568), 10.8, 0.16)
+    add("count", 9.8, 0.16, 0.0, 1.0)
+    add("ding", 10.8, 0.08, 0.0, 1568)
     # Chapter 3.
-    add(B["paper"](0.3), 11.5, 0.2)
-    add(B["marker"](), 11.65, 0.2)
-    add(B["paper"](0.3), 12.6, 0.25)
-    add(B["bubble"](), 13.2, 0.3)
-    add(B["pop"](1400), 14.0, 0.15)
-    add(B["paper"](0.3), 17.62, 0.22)
-    add(B["stamp"](), 18.0, 0.45)
-    add(B["paper"](0.3), 19.05, 0.22)
+    add("marker", 11.65, 0.10)
+    add("bubble", 13.2, 0.16)
+    add("stamp", 18.0, 0.22)
     # Chapter 4.
-    add(B["paper"](0.3), 21.65, 0.22, -0.4)
-    add(B["paper"](0.3), 23.0, 0.22, 0.4)
-    add(B["tick"](), 23.3, 0.2)
-    add(B["ding"](2093), 23.9, 0.12)
-    add(B["stamp"](), 27.35, 0.45)
-    add(B["scribble"](), 27.3, 0.16)
+    add("pop", 21.7, 0.10, -0.3, 900)
+    add("pop", 23.05, 0.10, 0.3, 1100)
+    add("ding", 23.9, 0.07, 0.0, 2093)
+    add("scribble", 27.3, 0.08)
+    add("stamp", 27.5, 0.22)
     # Chapter 5.
-    add(B["paper"](0.3), 28.9, 0.22)
-    add(B["paper"](0.3), 30.1, 0.2)
-    add(B["marker"](), 30.25, 0.2)
-    add(B["stamp"](), 31.0, 0.45)
-    add(B["ding"](1760), 31.05, 0.12)
+    add("marker", 30.25, 0.10)
+    add("stamp", 31.0, 0.22)
     # Outro.
-    add(B["whip"](0.4), SRC_DUR - 0.2, 0.25)
-    add(B["boom"](), SRC_DUR, 0.35)
-    add(B["paper"](), SRC_DUR, 0.3)
-    add(B["marker"](), SRC_DUR + 0.5, 0.2)
-    add(B["stamp"](), SRC_DUR + 1.0, 0.35)
-    # Soft outro pad so the end card isn't silent.
+    add("paper", SRC_DUR + 0.02, 0.16)
+    add("stamp", SRC_DUR + 0.9, 0.18)
+    add("pop", SRC_DUR + 0.65, 0.12, 0.0, 1000)
+    add("pop", SRC_DUR + 1.15, 0.12, 0.0, 1200)
+    for k in range(5):
+        add("tick", SRC_DUR + 1.6 + k * 0.45, 0.10)
+
+    def synth(name, args):
+        if name == "typerun":
+            sig = np.zeros(int(0.4 * SR))
+            for k in range(12):
+                tk = B["tick"]()
+                st = int(k * 0.028 * SR)
+                sig[st:st + len(tk)] += tk[:len(sig) - st]
+            return sig
+        return B[name](*args)
+
+    last = -1.0
+    for t0, name, g, pan, args in sorted(events, key=lambda e: e[0]):
+        if t0 - last < 0.22:
+            continue
+        last = t0
+        sig = synth(name, args)
+        s0 = int(t0 * SR)
+        e0 = min(n, s0 + len(sig))
+        l, r_ = math.cos((pan + 1) * math.pi / 4), math.sin((pan + 1) * math.pi / 4)
+        out[s0:e0, 0] += sig[:e0 - s0] * g * l * 1.414
+        out[s0:e0, 1] += sig[:e0 - s0] * g * r_ * 1.414
+    # Soft outro bed so the end card isn't silent.
     x = np.arange(int(OUTRO * SR)) / SR
     pad = sum(np.sin(2 * np.pi * f * x) for f in (220, 277.2, 329.6, 440)) / 4
-    pad *= np.minimum(1, x / 0.3) * np.clip((OUTRO - x) / 1.2, 0, 1) * 0.18
-    add(pad, SRC_DUR, 1.0)
+    pad *= np.minimum(1, x / 0.3) * np.clip((OUTRO - x) / 1.2, 0, 1) * 0.12
+    s0 = int(SRC_DUR * SR)
+    out[s0:s0 + len(pad)] += pad[:n - s0, None]
     pcm = (np.clip(out, -1, 1) * 32767).astype(np.int16)
     with wave.open(path, "wb") as w:
         w.setnchannels(2)
@@ -868,12 +926,15 @@ def build_sfx(path):
 
 
 AUDIO_MIX = (
-    # input 1 = source voice+music, input 2 = sfx
-    "[1:a]aresample=48000,highpass=f=70,equalizer=f=250:t=q:w=1:g=-2,"
-    "equalizer=f=3500:t=q:w=1:g=2.5,acompressor=threshold=-20dB:ratio=3:attack=8:release=120:makeup=3,"
-    f"apad=whole_dur={DUR}[v];"
+    # input 1 = voiceover mix (voice first: clarity EQ + gentle compression),
+    # input 2 = SFX, side-chain ducked by the voice so it never masks a word.
+    "[1:a]aresample=48000,highpass=f=80,"
+    "equalizer=f=300:t=q:w=1.2:g=-3,equalizer=f=3000:t=q:w=1.2:g=3,treble=g=1.5:f=8000,"
+    "acompressor=threshold=-22dB:ratio=3:attack=5:release=100:makeup=4,"
+    f"apad=whole_dur={DUR},asplit=2[v][vkey];"
     "[2:a]aresample=48000[s];"
-    "[v][s]amix=inputs=2:normalize=0:duration=longest,"
+    "[s][vkey]sidechaincompress=threshold=0.02:ratio=10:attack=5:release=250[sd];"
+    "[v][sd]amix=inputs=2:normalize=0:duration=longest,"
     "alimiter=limit=0.9,loudnorm=I=-14:TP=-1.0:LRA=8[a]"
 )
 

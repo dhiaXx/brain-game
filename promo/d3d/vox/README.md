@@ -1,5 +1,14 @@
 # D3D FAQ: Vox-style B2B edit
 
+**Current ad version:** `d3d_faq_ad.mp4` (36 s), built from `src/raw_v2.mp4` (cleaner voice). Its cover is `d3d_faq_cover.jpg` (`python3 promo/d3d/vox/make_cover.py`) and its captions are in `caption.md`.
+
+Changes in the ad version:
+- **Voice first:** clarity EQ and light compression on the voiceover, with sound effects ducked under the voice so they stay at least 12 dB below it while it speaks.
+- **No doubled sound:** the source mix already accents the cuts, so there are no extra whooshes or booms, and effects never stack.
+- **One red circle,** drawn as a single stroke.
+- **Interactive end card:** an « Envoyez DEVIS en DM » button plus a « Combien de pièces ? 50 · 100 · 500+ » comment poll.
+
+
 `d3d_faq_vox.mp4` is a 35-second vertical video (1080×1920, 30 fps) with audio at −14 LUFS.
 It's re-edited from `src/raw.mp4`, the raw 480×854 footage with the voiceover. The voiceover timing is unchanged; all the design is layered on top.
 
